@@ -106,7 +106,7 @@ namespace OverlayDropper
 
             if (SelectedGame == "League of Legends")
             {
-                HotKeyLabel.Text = "Toggle Overlay: A";
+                HotKeyLabel.Text = "Toggle Overlay: A or H or O";
             }
             else if (SelectedGame == "Starcraft 2")
             {
@@ -151,7 +151,7 @@ namespace OverlayDropper
                 IsAltDown = false;
             }
 
-            if (SelectedGame == "League of Legends" && e.KeyCode.ToString() == "A" && GetActiveWindowTitle() == "League of Legends (TM) Client")
+            if (SelectedGame == "League of Legends" && (e.KeyCode.ToString() == "A" || e.KeyCode.ToString() == "O" || e.KeyCode.ToString() == "H") && GetActiveWindowTitle() == "League of Legends (TM) Client")
             {
                 ToggleLeagueOfLegendsOverlays();
             }
