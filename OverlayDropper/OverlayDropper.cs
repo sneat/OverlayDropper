@@ -120,15 +120,15 @@ namespace OverlayDropper
         
         private void HookManager_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode.ToString() == "LControlKey")
+            if (e.KeyCode.ToString() == "LControlKey" || e.KeyCode.ToString() == "RControlKey")
             {
                 IsCtrlDown = true;
             }
-            else if (e.KeyCode.ToString() == "LShiftKey")
+            else if (e.KeyCode.ToString() == "LShiftKey" || e.KeyCode.ToString() == "RShiftKey")
             {
                 IsShiftDown = true;
             }
-            else if (e.KeyCode.ToString() == "LAltKey")
+            else if (e.KeyCode.ToString() == "LMenu" || e.KeyCode.ToString() == "RMenu")
             {
                 IsAltDown = true;
             }
@@ -138,24 +138,24 @@ namespace OverlayDropper
 
         private void HookManager_KeyUp(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode.ToString() == "LControlKey")
+            if (e.KeyCode.ToString() == "LControlKey" || e.KeyCode.ToString() == "RControlKey")
             {
                 IsCtrlDown = false;
             }
-            else if (e.KeyCode.ToString() == "LShiftKey")
+            else if (e.KeyCode.ToString() == "LShiftKey" || e.KeyCode.ToString() == "RShiftKey")
             {
                 IsShiftDown = false;
             }
-            else if (e.KeyCode.ToString() == "LAltKey")
+            else if (e.KeyCode.ToString() == "LMenu" || e.KeyCode.ToString() == "RMenu")
             {
                 IsAltDown = false;
             }
 
-            if (SelectedGame == "League of Legends" && e.KeyCode.ToString() == "A")
+            if (SelectedGame == "League of Legends" && e.KeyCode.ToString() == "A" && GetActiveWindowTitle() == "League of Legends (TM) Client")
             {
                 ToggleLeagueOfLegendsOverlays();
             }
-            else if (SelectedGame == "Starcraft 2" && IsCtrlDown && e.KeyCode.ToString() == "W")
+            else if (SelectedGame == "Starcraft 2" && IsCtrlDown && e.KeyCode.ToString() == "W" && GetActiveWindowTitle() == "StarCraft II")
             {
                 ToggleStarcraft2Overlays();
             }
