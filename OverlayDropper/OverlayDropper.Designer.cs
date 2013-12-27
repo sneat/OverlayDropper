@@ -1,4 +1,4 @@
-﻿namespace OverlayDropper
+﻿namespace SwitcherPanelCSharp
 {
     partial class OverlayDropper
     {
@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(OverlayDropper));
             this.checkBoxEnabled = new System.Windows.Forms.CheckBox();
             this.GameSelector = new System.Windows.Forms.ComboBox();
@@ -41,13 +42,16 @@
             this.HotKeyLabel = new System.Windows.Forms.Label();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.ProgLabel = new System.Windows.Forms.Label();
+            this.GameSourceSelector = new System.Windows.Forms.ComboBox();
+            this.label5 = new System.Windows.Forms.Label();
+            this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
             // checkBoxEnabled
             // 
             this.checkBoxEnabled.AutoSize = true;
-            this.checkBoxEnabled.Location = new System.Drawing.Point(204, 101);
+            this.checkBoxEnabled.Location = new System.Drawing.Point(204, 129);
             this.checkBoxEnabled.Name = "checkBoxEnabled";
             this.checkBoxEnabled.Size = new System.Drawing.Size(65, 17);
             this.checkBoxEnabled.TabIndex = 0;
@@ -63,7 +67,7 @@
             "",
             "League of Legends",
             "Starcraft 2"});
-            this.GameSelector.Location = new System.Drawing.Point(53, 99);
+            this.GameSelector.Location = new System.Drawing.Point(53, 127);
             this.GameSelector.Name = "GameSelector";
             this.GameSelector.Size = new System.Drawing.Size(121, 21);
             this.GameSelector.TabIndex = 1;
@@ -72,7 +76,7 @@
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(9, 102);
+            this.label1.Location = new System.Drawing.Point(9, 130);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(38, 13);
             this.label1.TabIndex = 2;
@@ -116,7 +120,7 @@
             // 
             // groupBox1
             // 
-            this.groupBox1.Location = new System.Drawing.Point(12, 61);
+            this.groupBox1.Location = new System.Drawing.Point(12, 89);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Size = new System.Drawing.Size(260, 2);
             this.groupBox1.TabIndex = 7;
@@ -125,7 +129,7 @@
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(9, 77);
+            this.label4.Location = new System.Drawing.Point(9, 105);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(79, 13);
             this.label4.TabIndex = 8;
@@ -134,7 +138,7 @@
             // HotKeyLabel
             // 
             this.HotKeyLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.HotKeyLabel.Location = new System.Drawing.Point(12, 132);
+            this.HotKeyLabel.Location = new System.Drawing.Point(12, 160);
             this.HotKeyLabel.Name = "HotKeyLabel";
             this.HotKeyLabel.Size = new System.Drawing.Size(257, 23);
             this.HotKeyLabel.TabIndex = 10;
@@ -142,8 +146,8 @@
             // 
             // pictureBox1
             // 
-            this.pictureBox1.Image = global::OverlayDropper.Properties.Resources.ACLProLogo;
-            this.pictureBox1.Location = new System.Drawing.Point(12, 158);
+            this.pictureBox1.Image = global::SwitcherPanelCSharp.Properties.Resources.ACLProLogo;
+            this.pictureBox1.Location = new System.Drawing.Point(12, 186);
             this.pictureBox1.Name = "pictureBox1";
             this.pictureBox1.Size = new System.Drawing.Size(260, 101);
             this.pictureBox1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -160,11 +164,35 @@
             this.ProgLabel.Text = "Not Connected";
             this.ProgLabel.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
+            // GameSourceSelector
+            // 
+            this.GameSourceSelector.Enabled = false;
+            this.GameSourceSelector.FormattingEnabled = true;
+            this.GameSourceSelector.Location = new System.Drawing.Point(90, 58);
+            this.GameSourceSelector.Name = "GameSourceSelector";
+            this.GameSourceSelector.Size = new System.Drawing.Size(86, 21);
+            this.GameSourceSelector.TabIndex = 13;
+            this.toolTip.SetToolTip(this.GameSourceSelector, "Select which Camera input your game source is in.\r\nOverlay Dropper will only acti" +
+                    "vate when the game source is the selected Program.");
+            this.GameSourceSelector.SelectedIndexChanged += new System.EventHandler(this.GameSourceSelector_SelectedIndexChanged);
+            // 
+            // label5
+            // 
+            this.label5.AutoSize = true;
+            this.label5.Location = new System.Drawing.Point(9, 61);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(75, 13);
+            this.label5.TabIndex = 14;
+            this.label5.Text = "Game Source:";
+            // 
             // OverlayDropper
             // 
+            this.AcceptButton = this.ATEMConnectButton;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(284, 262);
+            this.ClientSize = new System.Drawing.Size(284, 299);
+            this.Controls.Add(this.label5);
+            this.Controls.Add(this.GameSourceSelector);
             this.Controls.Add(this.ProgLabel);
             this.Controls.Add(this.pictureBox1);
             this.Controls.Add(this.HotKeyLabel);
@@ -200,6 +228,9 @@
         private System.Windows.Forms.Label HotKeyLabel;
         private System.Windows.Forms.PictureBox pictureBox1;
         private System.Windows.Forms.Label ProgLabel;
+        private System.Windows.Forms.ComboBox GameSourceSelector;
+        private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.ToolTip toolTip;
 
     }
 }

@@ -10,9 +10,8 @@ using MouseKeyboardActivityMonitor;
 using MouseKeyboardActivityMonitor.WinApi;
 using System.Runtime.InteropServices;
 using BMDSwitcherAPI;
-using SwitcherPanelCSharp;
 
-namespace OverlayDropper
+namespace SwitcherPanelCSharp
 {
     public partial class OverlayDropper : Form
     {
@@ -31,12 +30,16 @@ namespace OverlayDropper
 
         private SwitcherMonitor m_switcherMonitor;
         private MixEffectBlockMonitor m_mixEffectBlockMonitor;
+        private KeyMonitor m_keyMonitor;
+        private DownStreamKeyMonitor m_dkeyMonitor;
+        private IBMDSwitcherKey me1_key1, me1_key2, me1_key3, me1_key4;
+        private IBMDSwitcherDownstreamKey me1_dkey1, me1_dkey2;
 
-        private Boolean m_moveSliderDownwards = false;
-        private Boolean m_currentTransitionReachedHalfway = false;
+        private Boolean me1_dkey1_on, me1_dkey2_on, me1_dkey1_tie_on, me1_dkey2_tie_on = false;
 
         private List<InputMonitor> m_inputMonitors = new List<InputMonitor>();
 
+        private long GameInputId;
         private long ProgramInputId;
         private String ProgramInputName;
         #endregion
@@ -63,6 +66,9 @@ namespace OverlayDropper
 
             m_mixEffectBlockMonitor = new MixEffectBlockMonitor();
             m_mixEffectBlockMonitor.ProgramInputChanged += new SwitcherEventHandler((s, a) => this.Invoke((Action)(() => UpdateItems())));
+
+            m_keyMonitor = new KeyMonitor();
+            m_dkeyMonitor = new DownStreamKeyMonitor();
             
             m_switcherDiscovery = new CBMDSwitcherDiscovery();
             if (m_switcherDiscovery == null)
@@ -94,6 +100,11 @@ namespace OverlayDropper
         {
             Properties.Settings.Default.IPAddress = ATEMIpAddressTextBox.Text;
             Properties.Settings.Default.Save();
+        }
+
+        private void GameSourceSelector_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            GameInputId = Convert.ToInt64(GameSourceSelector.SelectedItem);
         }
         #endregion
 
@@ -169,12 +180,109 @@ namespace OverlayDropper
         {
             // TODO
             Log("Toggling LoL\n");
+            ToggleDownStreamKeyers();
         }
 
         private void ToggleStarcraft2Overlays()
         {
             // TODO
             Log("Toggling SC2\n");
+            ToggleDownStreamKeyers();
+        }
+
+        private void ToggleDownStreamKeyers()
+        {
+            if (GameInputId == 0 || ProgramInputId != GameInputId)
+            {
+                return;
+            }
+            int dkey1;
+            int dkey2;
+            int dkey1tie;
+            int dkey2tie;
+
+            int Keyer1OnAir;
+            int Keyer2OnAir;
+            int Keyer3OnAir;
+            int Keyer4OnAir;
+
+            me1_key1.GetOnAir(out Keyer1OnAir);
+            me1_key2.GetOnAir(out Keyer2OnAir);
+            me1_key3.GetOnAir(out Keyer3OnAir);
+            me1_key4.GetOnAir(out Keyer4OnAir);
+
+            me1_dkey1.GetOnAir(out dkey1);
+            me1_dkey2.GetOnAir(out dkey2);
+            me1_dkey1.GetTie(out dkey1tie);
+            me1_dkey2.GetTie(out dkey2tie);
+
+            if (dkey1 == 1)
+            {
+                // DS Keyer is currently on, store this and switch it off
+                me1_dkey1_on = true;
+                me1_dkey1.SetOnAir(0);
+
+                if (dkey1tie == 1)
+                {
+                    // DS Keyer Tie is currently on, store this and switch it off
+                    me1_dkey1_tie_on = true;
+                    me1_dkey1.SetTie(0);
+                }
+                else
+                {
+                    me1_dkey1_tie_on = false;
+                }
+            }
+            else if (me1_dkey1_on)
+            {
+                // DS Keyer is off but it used to be on, turn it on again
+                me1_dkey1_on = false;
+                me1_dkey1.SetOnAir(1);
+
+                if (me1_dkey1_tie_on)
+                {
+                    // Turn DS Keyer Tie on again
+                    me1_dkey1.SetTie(1);
+                }
+            }
+            else
+            {
+                me1_dkey1_tie_on = false;
+            }
+
+            if (dkey2 == 1)
+            {
+                // DS Keyer is currently on, store this and switch it off
+                me1_dkey2_on = true;
+                me1_dkey2.SetOnAir(0);
+
+                if (dkey2tie == 1)
+                {
+                    // DS Keyer Tie is currently on, store this and switch it off
+                    me1_dkey2_tie_on = true;
+                    me1_dkey2.SetTie(0);
+                }
+                else
+                {
+                    me1_dkey2_tie_on = false;
+                }
+            }
+            else if (me1_dkey2_on)
+            {
+                // DS Keyer is off but it used to be on, turn it on again
+                me1_dkey2_on = false;
+                me1_dkey2.SetOnAir(1);
+
+                if (me1_dkey2_tie_on)
+                {
+                    // Turn DS Keyer Tie on again
+                    me1_dkey2.SetTie(1);
+                }
+            }
+            else
+            {
+                me1_dkey2_tie_on = false;
+            }
         }
         #endregion
 
@@ -244,9 +352,18 @@ namespace OverlayDropper
             if (SwitcherAPIHelper.CreateIterator(m_switcher, out inputIterator))
             {
                 IBMDSwitcherInput input;
+                long inputId;
+
                 inputIterator.Next(out input);
                 while (input != null)
                 {
+                    input.GetInputId(out inputId);
+                    if (inputId > 0 && inputId < 9)
+                    {
+                        // 0 = Black
+                        // 9 = Bars
+                        GameSourceSelector.Items.Add(inputId);
+                    }
                     InputMonitor newInputMonitor = new InputMonitor(input);
                     input.AddCallback(newInputMonitor);
                     newInputMonitor.LongNameChanged += new SwitcherEventHandler(OnInputLongNameChanged);
@@ -254,6 +371,11 @@ namespace OverlayDropper
                     m_inputMonitors.Add(newInputMonitor);
 
                     inputIterator.Next(out input);
+                }
+                if (GameSourceSelector.Items.Count > 0)
+                {
+                    GameSourceSelector.Enabled = true;
+                    GameSourceSelector.SelectedIndex = 0;
                 }
             }
 
@@ -276,12 +398,46 @@ namespace OverlayDropper
 
             // Install MixEffectBlockMonitor callbacks:
             m_mixEffectBlock1.AddCallback(m_mixEffectBlockMonitor);
+
+            IBMDSwitcherDownstreamKeyIterator dkeyiterator;
+            dkeyiterator = null;
+            SwitcherAPIHelper.CreateIterator(m_switcher, out dkeyiterator);
+            if (dkeyiterator != null)
+            {
+                dkeyiterator.Next(out me1_dkey1);
+                dkeyiterator.Next(out me1_dkey2);
+            }
+
+            me1_dkey1.AddCallback(m_dkeyMonitor);
+            me1_dkey2.AddCallback(m_dkeyMonitor);
+
+            
+            IBMDSwitcherKeyIterator keyIterator;
+            SwitcherAPIHelper.CreateIterator(m_mixEffectBlock1, out keyIterator);
+
+            if (keyIterator != null)
+            {
+                keyIterator.Next(out me1_key1);
+                keyIterator.Next(out me1_key2);
+                keyIterator.Next(out me1_key3);
+                keyIterator.Next(out me1_key4);
+            }
+
+            if (me1_key1 != null) { me1_key1.AddCallback(m_keyMonitor); }
+            if (me1_key2 != null) { me1_key2.AddCallback(m_keyMonitor); }
+            if (me1_key3 != null) { me1_key3.AddCallback(m_keyMonitor); }
+            if (me1_key4 != null) { me1_key4.AddCallback(m_keyMonitor); }
+            
+
             UpdateItems();
         }
 
         private void SwitcherDisconnected()
         {
             ATEMConnectButton.Enabled = true;
+            GameInputId = new long();
+            GameSourceSelector.Items.Clear();
+            GameSourceSelector.Enabled = false;
 
             // Remove all input monitors, remove callbacks
             foreach (InputMonitor inputMon in m_inputMonitors)
@@ -300,6 +456,58 @@ namespace OverlayDropper
                 m_mixEffectBlock1 = null;
             }
 
+            if (me1_dkey1 != null)
+            {
+                // Remove callback
+                me1_dkey1.RemoveCallback(m_dkeyMonitor);
+
+                // Release reference
+                me1_dkey1 = null;
+            }
+
+            if (me1_dkey2 != null)
+            {
+                // Remove callback
+                me1_dkey2.RemoveCallback(m_dkeyMonitor);
+
+                // Release reference
+                me1_dkey2 = null;
+            }
+
+            
+            if (me1_key1 != null)
+            {
+                // Remove callback
+                me1_key1.RemoveCallback(m_keyMonitor);
+
+                // Release reference
+                me1_key1 = null;
+            }
+            if (me1_key2 != null)
+            {
+                // Remove callback
+                me1_key2.RemoveCallback(m_keyMonitor);
+
+                // Release reference
+                me1_key2 = null;
+            }
+            if (me1_key3 != null)
+            {
+                // Remove callback
+                me1_key3.RemoveCallback(m_keyMonitor);
+
+                // Release reference
+                me1_key3 = null;
+            }
+            if (me1_key4 != null)
+            {
+                // Remove callback
+                me1_key4.RemoveCallback(m_keyMonitor);
+
+                // Release reference
+                me1_key4 = null;
+            }
+
             if (m_switcher != null)
             {
                 // Remove callback:
@@ -308,8 +516,9 @@ namespace OverlayDropper
                 // release reference:
                 m_switcher = null;
             }
-        }
 
+            ProgLabel.Text = "Not Connected";
+        }
 
         private void UpdateItems()
         {
@@ -334,6 +543,8 @@ namespace OverlayDropper
                 {
                     ProgramInputName = inputName;
                 }
+
+                inputIterator.Next(out input);
             }
 
             if (ProgramInputName != "")
