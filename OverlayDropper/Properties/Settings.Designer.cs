@@ -34,5 +34,17 @@ namespace SwitcherPanelCSharp.Properties {
                 this["IPAddress"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("-1")]
+        public int GameSource {
+            get {
+                return ((int)(this["GameSource"]));
+            }
+            set {
+                this["GameSource"] = value;
+            }
+        }
     }
 }

@@ -1,9 +1,12 @@
 ﻿<?xml version='1.0' encoding='utf-8'?>
-<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="OverlayDropper.Properties" GeneratedClassName="Settings">
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="SwitcherPanelCSharp.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
     <Setting Name="IPAddress" Type="System.String" Scope="User">
       <Value Profile="(Default)">10.0.0.10</Value>
+    </Setting>
+    <Setting Name="GameSource" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">-1</Value>
     </Setting>
   </Settings>
 </SettingsFile>
