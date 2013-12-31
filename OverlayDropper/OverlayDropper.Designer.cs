@@ -45,7 +45,7 @@
             this.GameSourceSelector = new System.Windows.Forms.ComboBox();
             this.label5 = new System.Windows.Forms.Label();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
-            this.button1 = new System.Windows.Forms.Button();
+            this.TriggerTestButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -57,8 +57,8 @@
             this.checkBoxEnabled.Size = new System.Drawing.Size(65, 17);
             this.checkBoxEnabled.TabIndex = 0;
             this.checkBoxEnabled.Text = "Enabled";
+            this.toolTip.SetToolTip(this.checkBoxEnabled, "Toggle via Global Hotkey: Ctrl+Alt+Shift+O");
             this.checkBoxEnabled.UseVisualStyleBackColor = true;
-            this.checkBoxEnabled.CheckedChanged += new System.EventHandler(this.checkBoxEnabled_CheckedChanged);
             // 
             // GameSelector
             // 
@@ -186,15 +186,16 @@
             this.label5.TabIndex = 14;
             this.label5.Text = "Game Source:";
             // 
-            // button1
+            // TriggerTestButton
             // 
-            this.button1.Location = new System.Drawing.Point(197, 56);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
-            this.button1.TabIndex = 15;
-            this.button1.Text = "Test";
-            this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
+            this.TriggerTestButton.Location = new System.Drawing.Point(197, 56);
+            this.TriggerTestButton.Name = "TriggerTestButton";
+            this.TriggerTestButton.Size = new System.Drawing.Size(75, 23);
+            this.TriggerTestButton.TabIndex = 15;
+            this.TriggerTestButton.Text = "Test";
+            this.TriggerTestButton.UseVisualStyleBackColor = true;
+            this.TriggerTestButton.Visible = false;
+            this.TriggerTestButton.Click += new System.EventHandler(this.button1_Click);
             // 
             // OverlayDropper
             // 
@@ -202,7 +203,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(284, 299);
-            this.Controls.Add(this.button1);
+            this.Controls.Add(this.TriggerTestButton);
             this.Controls.Add(this.label5);
             this.Controls.Add(this.GameSourceSelector);
             this.Controls.Add(this.ProgLabel);
@@ -243,7 +244,7 @@
         private System.Windows.Forms.ComboBox GameSourceSelector;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.ToolTip toolTip;
-        private System.Windows.Forms.Button button1;
+        private System.Windows.Forms.Button TriggerTestButton;
 
     }
 }

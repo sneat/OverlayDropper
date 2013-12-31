@@ -36,6 +36,8 @@ namespace SwitcherPanelCSharp
         private IBMDSwitcherTransitionParameters m_transition;
         private IBMDSwitcherKey me1_key1, me1_key2, me1_key3, me1_key4;
         private IBMDSwitcherDownstreamKey me1_dkey1, me1_dkey2;
+        private _BMDSwitcherTransitionStyle existing_style;
+        private Boolean ResetTies = false;
 
         private Boolean me1_dkey1_on, me1_dkey2_on, me1_dkey1_tie_on, me1_dkey2_tie_on, me1_key1_on, me1_key2_on, me1_key3_on, me1_key4_on, me1_bkg_tie_on, me1_key1_tie_on, me1_key2_tie_on, me1_key3_tie_on, me1_key4_tie_on = false;
 
@@ -55,8 +57,16 @@ namespace SwitcherPanelCSharp
         public OverlayDropper()
         {
             InitializeComponent();
+
+            #if DEBUG
+            TriggerTestButton.Visible = true;
+            #endif
+
             ATEMIpAddressTextBox.Text = Properties.Settings.Default.IPAddress.ToString();
             m_KeyboardHookManager = new KeyboardHookListener(new GlobalHooker());
+            m_KeyboardHookManager.Enabled = true;
+            m_KeyboardHookManager.KeyDown += HookManager_KeyDown;
+            m_KeyboardHookManager.KeyUp += HookManager_KeyUp;
 
             m_switcherMonitor = new SwitcherMonitor();
             // note: this invoke pattern ensures our callback is called in the main thread. We are making double
@@ -68,9 +78,11 @@ namespace SwitcherPanelCSharp
 
             m_mixEffectBlockMonitor = new MixEffectBlockMonitor();
             m_mixEffectBlockMonitor.ProgramInputChanged += new SwitcherEventHandler((s, a) => this.Invoke((Action)(() => UpdateItems())));
+            m_mixEffectBlockMonitor.InTransitionChanged += new SwitcherEventHandler((s, a) => this.Invoke((Action)(() => OnInTransitionChanged())));
 
             m_keyMonitor = new KeyMonitor();
             m_dkeyMonitor = new DownStreamKeyMonitor();
+            m_dkeyMonitor.IsAutoTransitioningChanged += new SwitcherEventHandler((s, a) => this.Invoke((Action)(() => DKeyerIsAutoTransitioningChanged())));
             m_transitionMonitor = new TransitionMonitor();
             
             m_switcherDiscovery = new CBMDSwitcherDiscovery();
@@ -84,21 +96,6 @@ namespace SwitcherPanelCSharp
         }
 
         #region Initialisation of events and application
-        private void checkBoxEnabled_CheckedChanged(object sender, EventArgs e)
-        {
-            m_KeyboardHookManager.Enabled = checkBoxEnabled.Checked;
-            if (checkBoxEnabled.Checked)
-            {
-                m_KeyboardHookManager.KeyDown += HookManager_KeyDown;
-                m_KeyboardHookManager.KeyUp += HookManager_KeyUp;
-            }
-            else
-            {
-                m_KeyboardHookManager.KeyDown -= HookManager_KeyDown;
-                m_KeyboardHookManager.KeyUp -= HookManager_KeyUp;
-            }
-        }
-
         private void ATEMIpAddressTextBox_TextChanged(object sender, EventArgs e)
         {
             Properties.Settings.Default.IPAddress = ATEMIpAddressTextBox.Text;
@@ -108,6 +105,8 @@ namespace SwitcherPanelCSharp
         private void GameSourceSelector_SelectedIndexChanged(object sender, EventArgs e)
         {
             GameInputId = Convert.ToInt64(GameSourceSelector.SelectedItem);
+            Properties.Settings.Default.GameSource = Convert.ToInt32(GameInputId);
+            Properties.Settings.Default.Save();
         }
         #endregion
 
@@ -165,11 +164,15 @@ namespace SwitcherPanelCSharp
                 IsAltDown = false;
             }
 
-            if (SelectedGame == "League of Legends" && (e.KeyCode.ToString() == "A" || e.KeyCode.ToString() == "O" || e.KeyCode.ToString() == "H") && GetActiveWindowTitle() == "League of Legends (TM) Client")
+            if (e.KeyCode.ToString() == "O" && IsCtrlDown && IsAltDown && IsShiftDown)
+            {
+                checkBoxEnabled.Checked = !checkBoxEnabled.Checked;
+            }
+            else if (checkBoxEnabled.Checked && SelectedGame == "League of Legends" && (e.KeyCode.ToString() == "A" || e.KeyCode.ToString() == "O" || e.KeyCode.ToString() == "H") && GetActiveWindowTitle() == "League of Legends (TM) Client")
             {
                 ToggleLeagueOfLegendsOverlays();
             }
-            else if (SelectedGame == "Starcraft 2" && IsCtrlDown && e.KeyCode.ToString() == "W" && GetActiveWindowTitle() == "StarCraft II")
+            else if (checkBoxEnabled.Checked && SelectedGame == "Starcraft 2" && IsCtrlDown && e.KeyCode.ToString() == "W" && GetActiveWindowTitle() == "StarCraft II")
             {
                 ToggleStarcraft2Overlays();
             }
@@ -193,115 +196,29 @@ namespace SwitcherPanelCSharp
             ToggleOverlays();
         }
 
+        /// <summary>
+        /// We ToggleOverlays by checking to see whether any Upstream keyers are/were On Air,
+        /// if they were then we Tie them, disable Background Tie, enable any Downstream keyer
+        /// Ties and trigger an AutoTransition.
+        /// If there aren't/weren't any Upstream keyers On Air, we trigger AutoTransition
+        /// for any Downstream keyers.
+        /// Finally we ensure that the correct items are Tied at the end.
+        /// </summary>
         private void ToggleOverlays()
         {
             if (GameInputId == 0 || ProgramInputId != GameInputId)
             {
                 return;
             }
-            int dkey1;
-            int dkey2;
-            int dkey1tie;
-            int dkey2tie;
+            int dkey1 = 0;
+            int dkey2 = 0;
+            int dkey1tie = 0;
+            int dkey2tie = 0;
 
             me1_dkey1.GetOnAir(out dkey1);
             me1_dkey2.GetOnAir(out dkey2);
             me1_dkey1.GetTie(out dkey1tie);
             me1_dkey2.GetTie(out dkey2tie);
-
-            // Check Downstream Keyer 1
-            if (dkey1 == 1)
-            {
-                // DS Keyer is currently on, store this and switch it off
-                me1_dkey1_on = true;
-                me1_dkey1.SetOnAir(0);
-
-                if (dkey1tie == 1)
-                {
-                    // DS Keyer Tie is currently on, store this and switch it off
-                    me1_dkey1_tie_on = true;
-                    me1_dkey1.SetTie(0);
-                }
-                else
-                {
-                    me1_dkey1_tie_on = false;
-                }
-            }
-            else if (me1_dkey1_on)
-            {
-                // DS Keyer is off but it used to be on, turn it on again by auto transition
-                me1_dkey1_on = false;
-                me1_dkey1.PerformAutoTransition();
-
-                if (me1_dkey1_tie_on)
-                {
-                    // Turn DS Keyer Tie on again
-                    // TODO Auto transition prevent tie being set until after transition finishes, make the tie enable after transition completes
-                    me1_dkey1.SetTie(1);
-                }
-            }
-            else if (dkey1tie == 1)
-            {
-                // US Keyer Tie is currently on, store this and switch it off
-                me1_dkey1_tie_on = true;
-                me1_dkey1.SetTie(0);
-            }
-            else if (me1_dkey1_tie_on)
-            {
-                // Turn US Keyer Tie on again
-                me1_dkey1.SetTie(1);
-            }
-            else
-            {
-                me1_dkey1_tie_on = false;
-            }
-
-            // Check Downstreak Keyer 2
-            if (dkey2 == 1)
-            {
-                // DS Keyer is currently on, store this and switch it off
-                me1_dkey2_on = true;
-                me1_dkey2.SetOnAir(0);
-
-                if (dkey2tie == 1)
-                {
-                    // DS Keyer Tie is currently on, store this and switch it off
-                    me1_dkey2_tie_on = true;
-                    me1_dkey2.SetTie(0);
-                }
-                else
-                {
-                    me1_dkey2_tie_on = false;
-                }
-            }
-            else if (me1_dkey2_on)
-            {
-                // DS Keyer is off but it used to be on, turn it on again by auto transition
-                me1_dkey2_on = false;
-                me1_dkey2.PerformAutoTransition();
-
-                if (me1_dkey2_tie_on)
-                {
-                    // Turn DS Keyer Tie on again
-                    // TODO Auto transition prevent tie being set until after transition finishes, make the tie enable after transition completes
-                    me1_dkey2.SetTie(1);
-                }
-            }
-            else if (dkey2tie == 1)
-            {
-                // US Keyer Tie is currently on, store this and switch it off
-                me1_dkey2_tie_on = true;
-                me1_dkey2.SetTie(0);
-            }
-            else if (me1_dkey2_tie_on)
-            {
-                // Turn US Keyer Tie on again
-                me1_dkey2.SetTie(1);
-            }
-            else
-            {
-                me1_dkey2_tie_on = false;
-            }
 
             // Check Upstream Keyers
             int key1 = 0;
@@ -320,188 +237,315 @@ namespace SwitcherPanelCSharp
             int key4tie = 0;
             DetermineUpstreamKeyTies(out key1tie, out key2tie, out key3tie, out key4tie);
 
-            if (key1 == 1)
+            // Perform Toggle via main Transition if an Upstream Keyer is On Air,
+            // or we used to have an Upstream Keyer On Air and we don't currently have a Downstream Keyer On Air
+            if (key1 == 1 || key2 == 1 || key3 == 1 || key4 == 1 || ((me1_key1_on || me1_key2_on || me1_key3_on || me1_key4_on) && dkey1 == 0 && dkey2 == 0))
             {
-                // US Keyer is currently on, store this and switch it off
-                me1_key1_on = true;
-                me1_key1.SetOnAir(0);
-
-                if (key1tie == 1)
+                if (key1 == 1 || key2 == 1 || key3 == 1 || key4 == 1)
                 {
-                    // US Keyer Tie is currently on, store this and switch it off
-                    me1_key1_tie_on = true;
-                    ToggleKeyTie1(false);
+                    // We are turning overlays off
+
+                    // Store our existing Tie values
+                    me1_dkey1_tie_on = (dkey1tie == 1);
+                    me1_dkey2_tie_on = (dkey2tie == 1);
+                    me1_key1_tie_on = (key1tie == 1);
+                    me1_key2_tie_on = (key2tie == 1);
+                    me1_key3_tie_on = (key3tie == 1);
+                    me1_key4_tie_on = (key4tie == 1);
+
+                    // Do the transition
+                    if (key1 == 1)
+                    {
+                        me1_key1_on = true;
+                        if (key1tie == 0)
+                        {
+                            ToggleKeyTie1(true);
+                        }
+                    }
+                    else
+                    {
+                        if (key1tie == 1)
+                        {
+                            ToggleKeyTie1(false);
+                        }
+                    }
+                    if (key2 == 1)
+                    {
+                        me1_key2_on = true;
+                        if (key2tie == 0)
+                        {
+                            ToggleKeyTie2(true);
+                        }
+                    }
+                    else
+                    {
+                        if (key2tie == 1)
+                        {
+                            ToggleKeyTie2(false);
+                        }
+                    }
+                    if (key3 == 1)
+                    {
+                        me1_key3_on = true;
+                        if (key3tie == 0)
+                        {
+                            ToggleKeyTie3(true);
+                        }
+                    }
+                    else
+                    {
+                        if (key3tie == 1)
+                        {
+                            ToggleKeyTie3(false);
+                        }
+                    }
+                    if (key4 == 1)
+                    {
+                        me1_key4_on = true;
+                        if (key4tie == 0)
+                        {
+                            ToggleKeyTie4(true);
+                        }
+                    }
+                    else
+                    {
+                        if (key4tie == 1)
+                        {
+                            ToggleKeyTie4(false);
+                        }
+                    }
+                    if (dkey1 == 1)
+                    {
+                        me1_dkey1_on = true;
+                        if (dkey1tie == 0)
+                        {
+                            me1_dkey1.SetTie(1);
+                        }
+                    }
+                    else
+                    {
+                        me1_dkey1_on = false;
+                        if (dkey1tie == 1)
+                        {
+                            me1_dkey1.SetTie(0);
+                        }
+                    }
+                    if (dkey2 == 1)
+                    {
+                        me1_dkey2_on = true;
+                        if (dkey2tie == 0)
+                        {
+                            me1_dkey2.SetTie(1);
+                        }
+                    }
+                    else
+                    {
+                        me1_dkey2_on = false;
+                        if (dkey2tie == 1)
+                        {
+                            me1_dkey2.SetTie(0);
+                        }
+                    }
+                    if (me1_bkg_tie_on)
+                    {
+                        System.Threading.Thread.Sleep(50); // Give enough time to make sure that the Next Transitions are set
+                        ToggleBkgdKeyTie(false);
+                    }
+                    // Make sure that we aren't set to transition the background
+                    _BMDSwitcherTransitionSelection transitionselection;
+                    m_transition.GetNextTransitionSelection(out transitionselection);
+                    string stringtransitionselection = transitionselection.ToString();
+                    if (stringtransitionselection != "bmdSwitcherTransitionSelectionBackground")
+                    {
+                        m_transition.GetNextTransitionStyle(out existing_style);
+                        m_transition.SetNextTransitionStyle(_BMDSwitcherTransitionStyle.bmdSwitcherTransitionStyleMix);
+                        m_mixEffectBlock1.PerformAutoTransition();
+                        ResetTies = false;
+                    }
                 }
                 else
                 {
-                    me1_key1_tie_on = false;
+                    // We are turning overlays on
+                    if (me1_key1_on)
+                    {
+                        me1_key1_on = false;
+                        if (key1tie == 0)
+                        {
+                            ToggleKeyTie1(true);
+                        }
+                    }
+                    if (me1_key2_on)
+                    {
+                        me1_key2_on = false;
+                        if (key2tie == 0)
+                        {
+                            ToggleKeyTie2(true);
+                        }
+                    }
+                    if (me1_key3_on)
+                    {
+                        me1_key3_on = false;
+                        if (key3tie == 0)
+                        {
+                            ToggleKeyTie3(true);
+                        }
+                    }
+                    if (me1_key4_on)
+                    {
+                        me1_key4_on = false;
+                        if (key4tie == 0)
+                        {
+                            ToggleKeyTie4(true);
+                        }
+                    }
+                    if (me1_dkey1_on)
+                    {
+                        me1_dkey1_on = false;
+                        if (dkey1tie == 0)
+                        {
+                            me1_dkey1.SetTie(1);
+                        }
+                    }
+                    if (me1_dkey2_on)
+                    {
+                        me1_dkey2_on = false;
+                        if (dkey2tie == 0)
+                        {
+                            me1_dkey2.SetTie(1);
+                        }
+                    }
+                    if (me1_bkg_tie_on)
+                    {
+                        System.Threading.Thread.Sleep(50); // Give enough time to make sure that the Next Transitions are set
+                        ToggleBkgdKeyTie(false); 
+                    }
+                    // Make sure that we aren't set to transition the background
+                    _BMDSwitcherTransitionSelection transitionselection;
+                    m_transition.GetNextTransitionSelection(out transitionselection);
+                    string stringtransitionselection = transitionselection.ToString();
+                    if (stringtransitionselection != "bmdSwitcherTransitionSelectionBackground")
+                    {
+                        m_transition.GetNextTransitionStyle(out existing_style);
+                        m_transition.SetNextTransitionStyle(_BMDSwitcherTransitionStyle.bmdSwitcherTransitionStyleMix);
+                        m_mixEffectBlock1.PerformAutoTransition();
+                        ResetTies = true;
+                    }
                 }
-            }
-            else if (me1_key1_on)
-            {
-                // US Keyer is off but it used to be on, turn it on again straight away
-                // TODO Delay this by 1 second? Or Transition to it?
-                me1_key1_on = false;
-                me1_key1.SetOnAir(1);
-
-                if (me1_key1_tie_on)
-                {
-                    // Turn US Keyer Tie on again
-                    ToggleKeyTie1(true);
-                }
-            }
-            else if (key1tie == 1)
-            {
-                // US Keyer Tie is currently on, store this and switch it off
-                me1_key1_tie_on = true;
-                ToggleKeyTie1(false);
-            }
-            else if (me1_key1_tie_on)
-            {
-                // Turn US Keyer Tie on again
-                ToggleKeyTie1(true);
             }
             else
             {
-                me1_key1_tie_on = false;
-            }
-
-            if (key2 == 1)
-            {
-                // US Keyer is currently on, store this and switch it off
-                me1_key2_on = true;
-                me1_key2.SetOnAir(0);
-
-                if (key2tie == 1)
+                // Perform Toggle via individual Downstream keyers
+                if (dkey1 == 1 || dkey2 == 1)
                 {
-                    // US Keyer Tie is currently on, store this and switch it off
-                    me1_key2_tie_on = true;
-                    ToggleKeyTie2(false);
+                    // We are turning overlays off
+
+                    // Store our existing Tie values
+                    me1_dkey1_tie_on = (dkey1tie == 1);
+                    me1_dkey2_tie_on = (dkey2tie == 1);
+                    me1_key1_tie_on = (key1tie == 1);
+                    me1_key2_tie_on = (key2tie == 1);
+                    me1_key3_tie_on = (key3tie == 1);
+                    me1_key4_tie_on = (key4tie == 1);
+
+                    // Reset Upstream Keyer status
+                    me1_key1_on = me1_key2_on = me1_key3_on = me1_key4_on = false;
+
+                    if (dkey1 == 1)
+                    {
+                        // Downstream Keyer is currently on, store this and switch it off
+                        me1_dkey1_on = true;
+                        me1_dkey1.PerformAutoTransition();
+                    }
+                    else
+                    {
+                        me1_dkey1_on = false;
+                    }
+                    if (dkey2 == 1)
+                    {
+                        // Downstream Keyer is currently on, store this and switch it off
+                        me1_dkey2_on = true;
+                        me1_dkey2.PerformAutoTransition();
+                    }
+                    else
+                    {
+                        me1_dkey2_on = false;
+                    }
+                    if (dkey1tie == 1)
+                    {
+                        // Downstream Keyer Tie is currently on, switch it off
+                        me1_dkey1.SetTie(0);
+                    }
+                    if (dkey2tie == 1)
+                    {
+                        // Downstream Keyer Tie is currently on, switch it off
+                        me1_dkey2.SetTie(0);
+                    }
                 }
                 else
                 {
-                    me1_key2_tie_on = false;
+                    // We are turning overlays on
+
+                    if (me1_dkey1_on)
+                    {
+                        // Downstream Keyer is off but it used to be on, turn it on again by auto transition
+                        me1_dkey1_on = false;
+                        me1_dkey1.PerformAutoTransition();
+                    }
+                    if (me1_dkey2_on)
+                    {
+                        // Downstream Keyer is off but it used to be on, turn it on again by auto transition
+                        me1_dkey2_on = false;
+                        me1_dkey2.PerformAutoTransition();
+                    }
                 }
+                ResetTies = true;
             }
-            else if (me1_key2_on)
-            {
-                // US Keyer is off but it used to be on, turn it on again straight away
-                // TODO Delay this by 1 second? Or Transition to it?
-                me1_key2_on = false;
-                me1_key2.SetOnAir(1);
+        }
 
-                if (me1_key2_tie_on)
+        private void ToggleBkgdKeyTie(bool SetActive)
+        {
+            _BMDSwitcherTransitionSelection transitionselection;
+            m_transition.GetNextTransitionSelection(out transitionselection);
+            string stringtransitionselection = transitionselection.ToString();
+
+            if (stringtransitionselection == "bmdSwitcherTransitionSelectionBackground")
+            {
+                /*if (m_bkgdlayer)
                 {
-                    // Turn US Keyer Tie on again
-                    ToggleKeyTie2(true);
-                }
-            }
-            else if (key2tie == 1)
-            {
-                // US Keyer Tie is currently on, store this and switch it off
-                me1_key2_tie_on = true;
-                ToggleKeyTie2(false);
-            }
-            else if (me1_key2_tie_on)
-            {
-                // Turn US Keyer Tie on again
-                ToggleKeyTie2(true);
-            }
-            else
-            {
-                me1_key2_tie_on = false;
-            }
-
-            if (key3 == 1)
-            {
-                // US Keyer is currently on, store this and switch it off
-                me1_key3_on = true;
-                me1_key3.SetOnAir(0);
-
-                if (key3tie == 1)
-                {
-                    // US Keyer Tie is currently on, store this and switch it off
-                    me1_key3_tie_on = true;
-                    ToggleKeyTie3(false);
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + inttransitionselection);
                 }
                 else
                 {
-                    me1_key3_tie_on = false;
-                }
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + inttransitionselection - 2);
+                }*/
             }
-            else if (me1_key3_on)
+            else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey1")
             {
-                // US Keyer is off but it used to be on, turn it on again straight away
-                // TODO Delay this by 1 second? Or Transition to it?
-                me1_key3_on = false;
-                me1_key3.SetOnAir(1);
-
-                if (me1_key3_tie_on)
-                {
-                    // Turn US Keyer Tie on again
-                    ToggleKeyTie3(true);
-                }
+                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + 2);
             }
-            else if (key3tie == 1)
+            else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey2")
             {
-                // US Keyer Tie is currently on, store this and switch it off
-                me1_key3_tie_on = true;
-                ToggleKeyTie3(false);
+                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + 4);
             }
-            else if (me1_key3_tie_on)
+            else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey3")
             {
-                // Turn US Keyer Tie on again
-                ToggleKeyTie3(true);
+                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + 8);
+            }
+            else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey4")
+            {
+                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + 16);
             }
             else
             {
-                me1_key3_tie_on = false;
-            }
-
-            if (key4 == 1)
-            {
-                // US Keyer is currently on, store this and switch it off
-                me1_key4_on = true;
-                me1_key4.SetOnAir(0);
-
-                if (key4tie == 1)
+                int inttransitionselection = Convert.ToInt16(stringtransitionselection);
+                if (SetActive == true)
                 {
-                    // US Keyer Tie is currently on, store this and switch it off
-                    me1_key4_tie_on = true;
-                    ToggleKeyTie4(false);
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + inttransitionselection);
                 }
                 else
                 {
-                    me1_key4_tie_on = false;
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground + inttransitionselection - 2);
                 }
-            }
-            else if (me1_key4_on)
-            {
-                // US Keyer is off but it used to be on, turn it on again straight away
-                // TODO Delay this by 1 second? Or Transition to it?
-                me1_key4_on = false;
-                me1_key4.SetOnAir(1);
-
-                if (me1_key4_tie_on)
-                {
-                    // Turn US Keyer Tie on again
-                    ToggleKeyTie4(true);
-                }
-            }
-            else if (key4tie == 1)
-            {
-                // US Keyer Tie is currently on, store this and switch it off
-                me1_key4_tie_on = true;
-                ToggleKeyTie4(false);
-            }
-            else if (me1_key4_tie_on)
-            {
-                // Turn US Keyer Tie on again
-                ToggleKeyTie4(true);
-            }
-            else
-            {
-                me1_key4_tie_on = false;
             }
         }
 
@@ -511,15 +555,17 @@ namespace SwitcherPanelCSharp
             m_transition.GetNextTransitionSelection(out transitionselection);
             string stringtransitionselection = transitionselection.ToString();
 
-
             if (stringtransitionselection == "bmdSwitcherTransitionSelectionBackground")
             {
                 m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey1 + 1);
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey1")
-            {/*
-                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey1 + 2);
-            */
+            {
+                if (!SetActive)
+                {
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground);
+                }
+            
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey2")
             {
@@ -564,9 +610,11 @@ namespace SwitcherPanelCSharp
 
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey2")
-            {/*
-                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey2 + 4);
-           */
+            {
+                if (!SetActive)
+                {
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground);
+                }
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey3")
             {
@@ -611,9 +659,11 @@ namespace SwitcherPanelCSharp
                 m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey3 + 4);
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey3")
-            {/*
-                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey3 + 8);
-            */
+            {
+                if (!SetActive)
+                {
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground);
+                }
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey4")
             {
@@ -657,9 +707,11 @@ namespace SwitcherPanelCSharp
                 m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey4 + 8);
             }
             else if (stringtransitionselection == "bmdSwitcherTransitionSelectionKey4")
-            {/*
-                m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionKey4 + 16);
-           */
+            {
+                if (!SetActive)
+                {
+                    m_transition.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground);
+                }
             }
             else
             {
@@ -908,6 +960,209 @@ namespace SwitcherPanelCSharp
                 }
             }
         }
+
+        /// <summary>
+        /// Main Transition
+        /// </summary>
+        private void OnInTransitionChanged()
+        {
+            int inTransition;
+
+            m_mixEffectBlock1.GetFlag(_BMDSwitcherMixEffectBlockPropertyId.bmdSwitcherMixEffectBlockPropertyIdInTransition, out inTransition);
+
+            // When inTransition == 0 then the transition has finished, trigger our other events
+            if (inTransition == 0)
+            {
+                int dkey1tie = 0;
+                int dkey2tie = 0;
+                me1_dkey1.GetTie(out dkey1tie);
+                me1_dkey2.GetTie(out dkey2tie);
+
+                int key1tie = 0;
+                int key2tie = 0;
+                int key3tie = 0;
+                int key4tie = 0;
+                DetermineUpstreamKeyTies(out key1tie, out key2tie, out key3tie, out key4tie);
+                if (ResetTies)
+                {
+                    // We have brought the overlays back, reset the Ties
+                    if (!me1_bkg_tie_on) { ToggleBkgdKeyTie(true); }
+
+                    if (me1_dkey1_tie_on && dkey1tie == 0)
+                    {
+                        // Tie is off, should be on
+                        me1_dkey1.SetTie(1);
+                    }
+                    else if (!me1_dkey1_tie_on && dkey1tie == 1)
+                    {
+                        // Tie is on, should be off
+                        me1_dkey1.SetTie(0);
+                    }
+
+                    if (me1_dkey2_tie_on && dkey2tie == 0)
+                    {
+                        // Tie is off, should be on
+                        me1_dkey2.SetTie(1);
+                    }
+                    else if (!me1_dkey2_tie_on && dkey2tie == 1)
+                    {
+                        // Tie is on, should be off
+                        me1_dkey2.SetTie(0);
+                    }
+
+                    if (me1_key1_tie_on && key1tie == 0)
+                    {
+                        // Tie is off, should be on
+                        ToggleKeyTie1(true);
+                    }
+                    else if (!me1_key1_tie_on && key1tie == 1)
+                    {
+                        // Tie is on, should be off
+                        ToggleKeyTie1(false);
+                    }
+
+                    if (me1_key2_tie_on && key2tie == 0)
+                    {
+                        // Tie is off, should be on
+                        ToggleKeyTie2(true);
+                    }
+                    else if (!me1_key2_tie_on && key2tie == 1)
+                    {
+                        // Tie is on, should be off
+                        ToggleKeyTie2(false);
+                    }
+
+                    if (me1_key3_tie_on && key3tie == 0)
+                    {
+                        // Tie is off, should be on
+                        ToggleKeyTie3(true);
+                    }
+                    else if (!me1_key3_tie_on && key3tie == 1)
+                    {
+                        // Tie is on, should be off
+                        ToggleKeyTie3(false);
+                    }
+
+                    if (me1_key4_tie_on && key4tie == 0)
+                    {
+                        // Tie is off, should be on
+                        ToggleKeyTie4(true);
+                    }
+                    else if (!me1_key4_tie_on && key4tie == 1)
+                    {
+                        // Tie is on, should be off
+                        ToggleKeyTie4(false);
+                    }
+                }
+                else
+                {
+                    // We have just dropped the overlays, make sure just the Background is Tied
+                    if (!me1_bkg_tie_on) { ToggleBkgdKeyTie(true); }
+                    if (dkey1tie == 1) { me1_dkey1.SetTie(0); }
+                    if (dkey2tie == 1) { me1_dkey2.SetTie(0); }
+                    if (key1tie == 1) { ToggleKeyTie1(false); }
+                    if (key2tie == 1) { ToggleKeyTie2(false); }
+                    if (key3tie == 1) { ToggleKeyTie3(false); }
+                    if (key4tie == 1) { ToggleKeyTie4(false); }
+                }
+                m_transition.SetNextTransitionStyle(existing_style);
+            }
+        }
+
+        /// <summary>
+        /// Downstream Keyer Auto Transition
+        /// </summary>
+        private void DKeyerIsAutoTransitioningChanged()
+        {
+            int dkey1;
+            int dkey2;
+
+            me1_dkey1.IsAutoTransitioning(out dkey1);
+            me1_dkey2.IsAutoTransitioning(out dkey2);
+            // When dkey1 == 0  and dkey2 == 0 then the transition has finished, trigger our other events
+            if (ResetTies && dkey1 == 0 && dkey2 == 0)
+            {
+                if (!me1_bkg_tie_on) { ToggleBkgdKeyTie(true); }
+
+                int dkey1tie = 0;
+                int dkey2tie = 0;
+                me1_dkey1.GetTie(out dkey1tie);
+                me1_dkey2.GetTie(out dkey2tie);
+
+                int key1tie = 0;
+                int key2tie = 0;
+                int key3tie = 0;
+                int key4tie = 0;
+                DetermineUpstreamKeyTies(out key1tie, out key2tie, out key3tie, out key4tie);
+
+                if (me1_dkey1_tie_on && dkey1tie == 0)
+                {
+                    // Tie is off, should be on
+                    me1_dkey1.SetTie(1);
+                }
+                else if (!me1_dkey1_tie_on && dkey1tie == 1)
+                {
+                    // Tie is on, should be off
+                    me1_dkey1.SetTie(0);
+                }
+
+                if (me1_dkey2_tie_on && dkey2tie == 0)
+                {
+                    // Tie is off, should be on
+                    me1_dkey2.SetTie(1);
+                }
+                else if (!me1_dkey2_tie_on && dkey2tie == 1)
+                {
+                    // Tie is on, should be off
+                    me1_dkey2.SetTie(0);
+                }
+
+                if (me1_key1_tie_on && key1tie == 0)
+                {
+                    // Tie is off, should be on
+                    ToggleKeyTie1(true);
+                }
+                else if (!me1_key1_tie_on && key1tie == 1)
+                {
+                    // Tie is on, should be off
+                    ToggleKeyTie1(false);
+                }
+
+                if (me1_key2_tie_on && key2tie == 0)
+                {
+                    // Tie is off, should be on
+                    ToggleKeyTie2(true);
+                }
+                else if (!me1_key2_tie_on && key2tie == 1)
+                {
+                    // Tie is on, should be off
+                    ToggleKeyTie2(false);
+                }
+
+                if (me1_key3_tie_on && key3tie == 0)
+                {
+                    // Tie is off, should be on
+                    ToggleKeyTie3(true);
+                }
+                else if (!me1_key3_tie_on && key3tie == 1)
+                {
+                    // Tie is on, should be off
+                    ToggleKeyTie3(false);
+                }
+
+                if (me1_key4_tie_on && key4tie == 0)
+                {
+                    // Tie is off, should be on
+                    ToggleKeyTie4(true);
+                }
+                else if (!me1_key4_tie_on && key4tie == 1)
+                {
+                    // Tie is on, should be off
+                    ToggleKeyTie4(false);
+                }
+            }
+            Log(String.Format("dkey1 auto: {0}", dkey1 == 1 ? "true" : "false"));
+        }
         #endregion
 
         private void Log(string text)
@@ -999,7 +1254,14 @@ namespace SwitcherPanelCSharp
                 if (GameSourceSelector.Items.Count > 0)
                 {
                     GameSourceSelector.Enabled = true;
-                    GameSourceSelector.SelectedIndex = 0;
+                    if (GameSourceSelector.Items.Count >= Properties.Settings.Default.GameSource - 1)
+                    {
+                        GameSourceSelector.SelectedIndex = Properties.Settings.Default.GameSource - 1;
+                    }
+                    else
+                    {
+                        GameSourceSelector.SelectedIndex = 0;
+                    }
                 }
             }
 
@@ -1189,26 +1451,6 @@ namespace SwitcherPanelCSharp
             this.Invoke((Action)(() => UpdateItems()));
         }
         #endregion
-
-        /// <summary>
-        /// Used for putting other object types into combo boxes.
-        /// </summary>
-        struct StringObjectPair<T>
-        {
-            public string name;
-            public T value;
-
-            public StringObjectPair(string name, T value)
-            {
-                this.name = name;
-                this.value = value;
-            }
-
-            public override string ToString()
-            {
-                return name;
-            }
-        }
 
         private void button1_Click(object sender, EventArgs e)
         {
