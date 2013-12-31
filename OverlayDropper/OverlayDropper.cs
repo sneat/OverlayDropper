@@ -10,6 +10,7 @@ using MouseKeyboardActivityMonitor;
 using MouseKeyboardActivityMonitor.WinApi;
 using System.Runtime.InteropServices;
 using BMDSwitcherAPI;
+using System.Threading;
 
 namespace SwitcherPanelCSharp
 {
