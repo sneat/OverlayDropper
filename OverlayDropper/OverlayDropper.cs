@@ -38,6 +38,7 @@ namespace SwitcherPanelCSharp
         private IBMDSwitcherDownstreamKey me1_dkey1, me1_dkey2;
         private _BMDSwitcherTransitionStyle existing_style;
         private Boolean ResetTies = false;
+        private Boolean ShouldATEMBeConnected = false;
 
         private Boolean me1_dkey1_on, me1_dkey2_on, me1_dkey1_tie_on, me1_dkey2_tie_on, me1_key1_on, me1_key2_on, me1_key3_on, me1_key4_on, me1_bkg_tie_on, me1_key1_tie_on, me1_key2_tie_on, me1_key3_tie_on, me1_key4_tie_on = false;
 
@@ -111,8 +112,6 @@ namespace SwitcherPanelCSharp
         #endregion
 
         #region Event handlers of particular events. They will be activated when an appropriate checkbox is checked.
-
-
         private void GameSelector_SelectedIndexChanged(object sender, EventArgs e)
         {
             SelectedGame = GameSelector.SelectedItem.ToString();
@@ -206,7 +205,7 @@ namespace SwitcherPanelCSharp
         /// </summary>
         private void ToggleOverlays()
         {
-            if (GameInputId == 0 || ProgramInputId != GameInputId)
+            if (m_mixEffectBlock1 == null || GameInputId == 0 || ProgramInputId != GameInputId)
             {
                 return;
             }
@@ -1187,6 +1186,20 @@ namespace SwitcherPanelCSharp
         #region ATEM Connections
         private void ATEMConnectButton_Click(object sender, EventArgs e)
         {
+            if (ATEMConnectButton.Text == "Connect")
+            {
+                ConnectToATEM();
+            }
+            else
+            {
+                ShouldATEMBeConnected = false;
+                SwitcherDisconnected();
+            }
+        }
+
+        private Boolean ConnectToATEM(Boolean Retrying = false)
+        {
+            ATEMConnectButton.Enabled = false;
             _BMDSwitcherConnectToFailure failReason = 0;
             string address = ATEMIpAddressTextBox.Text;
 
@@ -1200,27 +1213,33 @@ namespace SwitcherPanelCSharp
             catch (COMException)
             {
                 // An exception will be thrown if ConnectTo fails. For more information, see failReason.
-                switch (failReason)
+                if (!Retrying)
                 {
-                    case _BMDSwitcherConnectToFailure.bmdSwitcherConnectToFailureNoResponse:
-                        MessageBox.Show("No response from Switcher", "Error");
-                        break;
-                    case _BMDSwitcherConnectToFailure.bmdSwitcherConnectToFailureIncompatibleFirmware:
-                        MessageBox.Show("Switcher has incompatible firmware", "Error");
-                        break;
-                    default:
-                        MessageBox.Show("Connection failed for unknown reason", "Error");
-                        break;
+                    switch (failReason)
+                    {
+                        case _BMDSwitcherConnectToFailure.bmdSwitcherConnectToFailureNoResponse:
+                            MessageBox.Show("No response from Switcher", "Error");
+                            break;
+                        case _BMDSwitcherConnectToFailure.bmdSwitcherConnectToFailureIncompatibleFirmware:
+                            MessageBox.Show("Switcher has incompatible firmware", "Error");
+                            break;
+                        default:
+                            MessageBox.Show("Connection failed for unknown reason", "Error");
+                            break;
+                    }
+                    ATEMConnectButton.Enabled = true;
                 }
-                return;
+                return false;
             }
 
             SwitcherConnected();
+            return true;
         }
 
         private void SwitcherConnected()
         {
-            ATEMConnectButton.Enabled = false;
+            ShouldATEMBeConnected = true;
+            TriggerTestButton.Enabled = true;
 
             // Install SwitcherMonitor callbacks:
             m_switcher.AddCallback(m_switcherMonitor);
@@ -1233,6 +1252,7 @@ namespace SwitcherPanelCSharp
                 IBMDSwitcherInput input;
                 long inputId;
 
+                GameSourceSelector.Items.Clear();
                 inputIterator.Next(out input);
                 while (input != null)
                 {
@@ -1316,16 +1336,18 @@ namespace SwitcherPanelCSharp
             if (me1_key2 != null) { me1_key2.AddCallback(m_keyMonitor); }
             if (me1_key3 != null) { me1_key3.AddCallback(m_keyMonitor); }
             if (me1_key4 != null) { me1_key4.AddCallback(m_keyMonitor); }
-            
 
+            ATEMConnectButton.Text = "Disconnect";
+            ATEMConnectButton.Enabled = true;
             UpdateItems();
         }
 
         private void SwitcherDisconnected()
         {
+            ATEMConnectButton.Text = "Connect";
             ATEMConnectButton.Enabled = true;
+            TriggerTestButton.Enabled = false;
             GameInputId = new long();
-            GameSourceSelector.Items.Clear();
             GameSourceSelector.Enabled = false;
 
             // Remove all input monitors, remove callbacks
@@ -1397,6 +1419,15 @@ namespace SwitcherPanelCSharp
                 me1_key4 = null;
             }
 
+            if (m_transition != null)
+            {
+                // Remove callback
+                m_transition.RemoveCallback(m_transitionMonitor);
+
+                // Release reference
+                m_transition = null;
+            }
+
             if (m_switcher != null)
             {
                 // Remove callback:
@@ -1406,7 +1437,19 @@ namespace SwitcherPanelCSharp
                 m_switcher = null;
             }
 
-            ProgLabel.Text = "Not Connected";
+            if (ShouldATEMBeConnected)
+            {
+                ProgLabel.Text = "Retrying...";
+                // Retry connection
+                Retry.RetryMethod<Boolean>(() =>
+                {
+                    return ConnectToATEM(true);
+                }, 240, 500); // Retry for the next 2 minutes; waiting 0.5 seconds before the next try
+            }
+            else
+            {
+                ProgLabel.Text = "Not Connected";
+            }
         }
 
         private void UpdateItems()
@@ -1452,9 +1495,64 @@ namespace SwitcherPanelCSharp
         }
         #endregion
 
-        private void button1_Click(object sender, EventArgs e)
+        private void TriggerTestButton_Click(object sender, EventArgs e)
         {
             ToggleOverlays();
+        }
+    }
+
+    public class Retry
+    {
+        /// <summary>
+        /// Retry calling of a method if it fails
+        /// </summary>
+        /// <typeparam name="T">Return data type</typeparam>
+        /// <param name="method">Method</param>
+        /// <param name="numRetries">Number of Retries</param>
+        /// <param name="millisecondsToWaitBeforeRetry"></param>
+        /// <returns>T</returns>
+        public static T RetryMethod<T>(Func<T> method, int numRetries, int millisecondsToWaitBeforeRetry)
+        {
+            if (method == null)
+                throw new ArgumentNullException("method");
+            T retval = default(T);
+            do
+            {
+                try
+                {
+                    retval = method();
+                    System.Console.WriteLine(string.Format("Retrying response: {0}", retval.ToString()));
+                    if (Convert.ToBoolean(retval)) { return retval; }
+                }
+                catch (Exception)
+                {
+                    if (numRetries <= 0) throw;
+                    Thread.Sleep(millisecondsToWaitBeforeRetry);
+                }
+            } while (numRetries-- > 0);
+            return retval;
+        }
+
+        /// <summary>
+        /// Retry calling of an Action if it fails
+        /// </summary>
+        /// <typeparam name="T">Return data type</typeparam>
+        /// <param name="method">Method</param>
+        /// <param name="numRetries">Number of Retries</param>
+        /// <param name="millisecondsToWaitBeforeRetry"></param>
+        public static void RetryAction(Action action, int numRetries, int millisecondsToWaitBeforeRetry)
+        {
+            if (action == null)
+                throw new ArgumentNullException("action");
+            do
+            {
+                try { action(); return; }
+                catch (Exception)
+                {
+                    if (numRetries <= 0) throw;
+                    else Thread.Sleep(millisecondsToWaitBeforeRetry);
+                }
+            } while (numRetries-- > 0);
         }
     }
 }

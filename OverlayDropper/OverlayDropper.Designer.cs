@@ -195,7 +195,7 @@
             this.TriggerTestButton.Text = "Test";
             this.TriggerTestButton.UseVisualStyleBackColor = true;
             this.TriggerTestButton.Visible = false;
-            this.TriggerTestButton.Click += new System.EventHandler(this.button1_Click);
+            this.TriggerTestButton.Click += new System.EventHandler(this.TriggerTestButton_Click);
             // 
             // OverlayDropper
             // 
