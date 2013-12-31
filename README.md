@@ -1,9 +1,17 @@
 OverlayDropper by ACLPro
-==============
+====
 
 Program designed to be used by the stream team to syncronise hiding in game overlays and ATEM mixer overlays. The program should be run on the spectator PC.
 
 ![Screenshot](https://raw.github.com/sneat/OverlayDropper/master/OverlayDropper/Resources/Screenshot.png "Screenshot")
+
+Download
+====
+
+You can find the installers at https://github.com/sneat/OverlayDropper/tree/master/OverlayDropper/Releases otherwise feel free to clone the repository and compile it with Visual Studio.
+
+Info
+====
 
 Overlays will only toggle via in-game Hotkeys if all of the following are met:
 * ATEM is connected
@@ -18,7 +26,7 @@ When overlays are returned, the ATEM Software Control Panel will be returned to 
 OverlayDropper will use the Mix Transition to perform the toggles (even if Mix isn't selected as the Transition method).
 
 How To Use
-======
+====
 
 * ATEM Software label lists the version of the ATEM Software that should be running.
 * Enter the IP Address of the ATEM and press Connect
