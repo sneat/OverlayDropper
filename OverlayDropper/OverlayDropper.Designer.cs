@@ -90,7 +90,7 @@
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(106, 13);
             this.label2.TabIndex = 3;
-            this.label2.Text = "ATEM Software v4.2";
+            this.label2.Text = "ATEM Software v5.0";
             // 
             // label3
             // 
@@ -174,7 +174,7 @@
             this.GameSourceSelector.Size = new System.Drawing.Size(86, 21);
             this.GameSourceSelector.TabIndex = 13;
             this.toolTip.SetToolTip(this.GameSourceSelector, "Select which Camera input your game source is in.\r\nOverlay Dropper will only acti" +
-                    "vate when the game source is the selected Program.");
+        "vate when the game source is the selected Program.");
             this.GameSourceSelector.SelectedIndexChanged += new System.EventHandler(this.GameSourceSelector_SelectedIndexChanged);
             // 
             // label5
